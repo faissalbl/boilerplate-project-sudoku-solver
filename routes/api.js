@@ -23,9 +23,7 @@ module.exports = function (app) {
 
         const rowName = coordinate[0];
         const colName = coordinate[1];
-        console.log('about to call check');
         const result = solver.check(puzzle, rowName, colName, value);
-        console.log('result', result);
         return res.json(result);
     });
     

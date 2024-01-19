@@ -72,6 +72,13 @@ suite('Unit Tests', () => {
     );
 
     assert.isTrue(result.valid);
+
+    result = solver.checkRowPlacement(
+      '1.5..2.84..63.12.7.2..5.....9..1....8.2.3674.3.7.2..9.47...8..1..16....926914.37.',
+      'A', '3', '5'
+    );
+
+    assert.isTrue(result.valid);
   });
 
   test('Logic handles an invalid row placement', () => {
@@ -91,6 +98,13 @@ suite('Unit Tests', () => {
     );
 
     assert.isTrue(result.valid);
+
+    result = solver.checkColPlacement(
+      '1.5..2.84..63.12.7.2..5.....9..1....8.2.3674.3.7.2..9.47...8..1..16....926914.37.',
+      'A', '3', '5'
+    );
+
+    assert.isTrue(result.valid);
   });
 
   test('Logic handles an invalid column placement', () => {
@@ -107,6 +121,13 @@ suite('Unit Tests', () => {
     let result = solver.checkRegionPlacement(
       '1.5..2.84..63.12.7.2..5.....9..1....8.2.3674.3.7.2..9.47...8..1..16....926914.37.',
       'A', '2', '3'
+    );
+
+    assert.isTrue(result.valid);
+
+    result = solver.checkRegionPlacement(
+      '1.5..2.84..63.12.7.2..5.....9..1....8.2.3674.3.7.2..9.47...8..1..16....926914.37.',
+      'A', '3', '5'
     );
 
     assert.isTrue(result.valid);

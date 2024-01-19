@@ -1,122 +1,9 @@
-const Cell = require("../models/Cell");
-const { puzzlesAndSolutions } = require("./puzzle-strings");
-
 class SudokuSolver {
   constructor() {
     this.rowNames = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
     this.colNames = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
- }
+  }
   
-  buildRows(puzzleString, rowLength) {
-    const rows = [];
-    let row = [];
-    for (let i = 0; i < puzzleString.length; i++) {
-      const val = puzzleString[i];
-      row.push(val);
-      if ((i + 1) % rowLength === 0) {
-        rows.push(row);
-        row = [];
-      }
-    }
-    return rows;
-  }
-
-  buildCols(rows, colLength) {
-    const cols = [];
-    let col = [];
-
-    for (let i = 0; i < colLength; i++) {
-      col = rows.map((r) => r[i]);
-      cols.push(col);
-    }
-    return cols;
-  }
-
-  buildRegions(rows) {
-    const regionRowColLength = 3;
-    const regionsRows = [];
-
-    for (let r = 0; r < rows.length; r++) {
-      const row = rows[r];
-      const regionsRowIndex = Math.floor(r / regionRowColLength);
-      let regionsRow = regionsRows[regionsRowIndex];
-      if (!regionsRow) {
-        regionsRow = [];
-        regionsRows.push(regionsRow);
-      }
-      for (let c = 0; c < row.length; c++) {
-        const regionIndex = Math.floor(c / regionRowColLength);
-        let region = regionsRow[regionIndex];
-        if (!region) {
-          region = {
-            vals: [],
-            rowColCoordinates: [],
-          };
-          regionsRow.push(region);
-        }
-        region.vals.push(row[c]);
-        region.rowColCoordinates.push([r, c]);
-      }
-    }
-
-    return regionsRows.flat();
-  }
-
-  // build cells and returns them in a list
-  // of rows of cells, such that each cell.rowIndex / cell.colIndex
-  // combination will match its position in the array, so that it can be found
-  // easily.
-  buildCells(puzzleString) {
-    const rowLength = 9;
-    const colLength = 9;
-
-    const rows = this.buildRows(puzzleString, rowLength);
-    const cols = this.buildCols(rows, colLength);
-    const regions = this.buildRegions(rows);
-
-    const cells = [];
-
-    for (let i = 0; i < puzzleString.length; i++) {
-      const val = puzzleString[i];
-      const rowIndex = Math.floor(i / rowLength);
-      const row = rows[rowIndex];
-      const colIndex = i % rowLength;
-      const col = cols[colIndex];
-      const rowName = this.rowNames[rowIndex];
-      const colName = this.colNames[i];
-      const region = regions.find((b) => {
-        const coordinate = b.rowColCoordinates.find((coord) => {
-          const coordToFind = [rowIndex, colIndex];
-          return coord.toString() === coordToFind.toString();
-        });
-
-        return coordinate ? true : false;
-      });
-
-      const cell = new Cell(
-        val,
-        rowIndex,
-        colIndex,
-        row,
-        col,
-        rowName,
-        colName,
-        region,
-      );
-
-      let cellRow = cells[rowIndex];
-      if (!cellRow) {
-        cellRow = [];
-        cells.push(cellRow);
-      }
-
-      // add to the cellRow matching colIndex
-      cellRow[colIndex] = cell;
-    }
-
-    return cells;
-  }
-
   validate(puzzleString) {
     let error;
     if (!puzzleString) {
@@ -137,64 +24,114 @@ class SudokuSolver {
   }
 
   checkRowPlacement(puzzleString, rowName, colName, value) {
-    const { error, rowIndex, colIndex } = 
+    const { error, grid, rowIndex, colIndex } = 
       this.processInput(puzzleString, rowName, colName, value);
     if (error) {
       return { error };
     }
-    
-    const cells = this.buildCells(puzzleString);
-    const cell = cells[rowIndex][colIndex];
 
-    const existingVal = cell.row.find((r) => r == value);
+    return this.checkGridRowPlacement(grid, rowIndex, colIndex, value);
+  }
+
+  checkGridRowPlacement(grid, rowIndex, colIndex, value) {
+    const cell = this.preGridCheck(grid, rowIndex, colIndex, value);
+
+    let result;
+    const existingVal = grid[rowIndex].find((r) => r == value);
     if (existingVal) {
-      return { valid: false, conflict: 'row' };
+      result = { valid: false, conflict: 'row' };
     } else {
-      return { valid: true };
+      result = { valid: true };
     }
+    this.postGridCheck(grid, rowIndex, colIndex, cell);
+    return result; 
   }
 
   checkColPlacement(puzzleString, rowName, colName, value) {
-    const { error, rowIndex, colIndex } = 
+    const { error, grid, rowIndex, colIndex } = 
       this.processInput(puzzleString, rowName, colName, value);
     if (error) {
       return { error };
     }
 
-    const cells = this.buildCells(puzzleString);
-    const cell = cells[rowIndex][colIndex];
+    return this.checkGridColPlacement(grid, rowIndex, colIndex, value);
+  }
 
-    const existingVal = cell.col.find((c) => c == value);
-    if (existingVal) {
-      return { valid: false, conflict: 'column' };
-    } else {
-      return { valid: true };
+  checkGridColPlacement(grid, rowIndex, colIndex, value) {
+    const cell = this.preGridCheck(grid, rowIndex, colIndex, value);
+
+    let result;
+    for (let r = 0; r < 9; r++) {
+      if (grid[r][colIndex] == value) {
+        result = { valid: false, conflict: 'column' };
+        break;
+      }
     }
+    
+    if (!result) result = { valid: true };
+    this.postGridCheck(grid, rowIndex, colIndex, cell);
+    return result;
   }
 
   checkRegionPlacement(puzzleString, rowName, colName, value) {
-    const { error, rowIndex, colIndex } = 
+    const { error, grid, rowIndex, colIndex } = 
       this.processInput(puzzleString, rowName, colName, value);
     if (error) {
       return { error };
     }
 
-    const cells = this.buildCells(puzzleString);
-    const cell = cells[rowIndex][colIndex];
+    return this.checkGridRegionPlacement(grid, rowIndex, colIndex, value);
+  }
 
-    const existingVal = cell.region.vals.find((v) => v == value);
-    if (existingVal) {
-      return { valid: false, conflict: 'region' };
-    } else {
-      return { valid: true };
+  checkGridRegionPlacement(grid, rowIndex, colIndex, value) {
+    const cell = this.preGridCheck(grid, rowIndex, colIndex, value);
+
+    const rowStart = rowIndex - rowIndex % 3;
+    const colStart = colIndex - colIndex % 3;
+
+    let result;
+    for (let r = 0; r < 3; r++) {
+      if (result) break;
+      for (let c = 0; c < 3; c++) {
+        const regionRowIndex = rowStart + r;
+        const regionColIndex = colStart + c;
+
+        if (grid[regionRowIndex][regionColIndex] == value) {
+          result = { valid: false, conflict: 'region' };
+          break;
+        }
+      }
     }
+    if (!result) result = { valid: true };
+    this.postGridCheck(grid, rowIndex, colIndex, cell);
+    return result;
+  }
+
+  preGridCheck(grid, rowIndex, colIndex, value) {
+    const cell = grid[rowIndex][colIndex];
+    if (cell == value) grid[rowIndex][colIndex] = '.';
+    return cell;
+  }
+
+  postGridCheck(grid, rowIndex, colIndex, value) {
+    grid[rowIndex][colIndex] = value;
   }
 
   check(puzzleString, rowName, colName, value) {
+    const { error, grid, rowIndex, colIndex } = 
+      this.processInput(puzzleString, rowName, colName, value);
+    if (error) {
+      return { error };
+    }
+
+    return this.checkGrid(grid, rowIndex, colIndex, value);
+  };
+
+  checkGrid(grid, rowIndex, colIndex, value) {
     let valid = true;
     const conflict = [];
 
-    let result = this.checkRowPlacement(puzzleString, rowName, colName, value);
+    let result = this.checkGridRowPlacement(grid, rowIndex, colIndex, value);
     if (result.error) {
       return { error: result.error };
     }    
@@ -203,7 +140,7 @@ class SudokuSolver {
       valid = false;
     }
 
-    result = this.checkColPlacement(puzzleString, rowName, colName, value);
+    result = this.checkGridColPlacement(grid, rowIndex, colIndex, value);
     if (result.error) {
       return { error: result.error };
     }    
@@ -212,7 +149,7 @@ class SudokuSolver {
       valid = false;
     }
 
-    result = this.checkRegionPlacement(puzzleString, rowName, colName, value);
+    result = this.checkGridRegionPlacement(grid, rowIndex, colIndex, value);
     if (result.error) {
       return { error: result.error };
     }   
@@ -227,7 +164,7 @@ class SudokuSolver {
     }
   
     return result;
-  };
+  }
 
   processInput(puzzleString, rowName, colName, value) {
     const error = this.validate(puzzleString);
@@ -245,47 +182,96 @@ class SudokuSolver {
       return { error: "Invalid coordinate" };
     }
 
-    return { rowIndex, colIndex };
+    const grid = this.buildGrid(puzzleString);
+
+    return { grid, rowIndex, colIndex };
   };
 
+  buildGrid(puzzleString) {
+    const grid = [];
+    for (let i = 0; i < puzzleString.length; i++) {
+      const rowIndex = Math.floor(i / 9);
+      const colIndex = i % 9;
+      
+      let row = grid[rowIndex];
+      if (!row) {
+        row = [];
+        grid[rowIndex] = row;
+      }
+
+      row[colIndex] = puzzleString[i];
+    }
+    return grid;
+  }
+
+  findEmptyCell(grid) {
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (grid[r][c] === '.') {
+          return [r, c];
+        }
+      }
+    }
+    return null;
+  }
+
+  solveSudoku(grid) {
+    const emptyCell = this.findEmptyCell(grid);
+    if (!emptyCell) {
+      return true; //solved
+    }
+
+    const [row, col] = emptyCell;
+    // try filling the empty cell with 1 - 9
+    for (let num = 1; num <= 9; num++) {
+      const { valid } = this.checkGrid(grid, row, col, num);
+      if (valid) {
+        // if the current placement is valid, try solving the rest
+        // of sudoku
+        grid[row][col] = num;
+        
+        if (this.solveSudoku(grid)) {
+          return true;
+        }
+
+        // otherwise, the current placement was not one that made
+        // it possible to solve the rest of sudoku. Backtrack.
+        grid[row][col] = '.';
+      }
+    }
+    return false; // no valid number found. Need to backtrack.
+  }
+
   solve(puzzleString) {
-    const error = this.validate(puzzleString);
+    const validationError = this.validate(puzzleString);
+    if (validationError) {
+      return { error: validationError };
+    }
+
+    const grid = this.buildGrid(puzzleString);
+    if (!this.solveSudoku(grid)) {
+      return { error: 'Puzzle cannot be solved' };
+    }
+
+    const { error } = this.validateSolvedGrid(grid);
     if (error) {
       return { error };
     }
-
-    const puzzSol = puzzlesAndSolutions.find(p => {
-      const matchRes = puzzleString.match(p[0]);
-      return matchRes ? true : false;
-    });
     
-    if (!puzzSol) {
-      return { error: "Puzzle cannot be solved" };
+    const solution = grid.flat().join('');
+
+    return { solution };    
+  }
+
+  validateSolvedGrid(grid) {
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        const value = grid[r][c];
+        const { valid } = this.checkGrid(grid, r, c, value);
+        if (!valid) return { error: 'Puzzle cannot be solved' };
+      }
     }
-
-    const solution = puzzSol[1];
-
-    // I was trying here to solve any puzzleString without the help of the given solution.
-    // for (let c = 0; c < cells.length; c++) {
-    //   const cell = cells[c];
-    //   if (cell.val === '.') {
-    //     for (let v = 1; v <= 9; v++) {
-    //       const value = v.toString();
-    //       let result = this.checkRowPlacement(puzzleString, cell.rowName, cell.colName, value, cell);
-    //       if (!result.valid) continue;
-
-    //       result = this.checkColPlacement(puzzleString, cell.rowName, cell.colName, value, cell);
-    //       if (!result.valid) continue;
-
-    //       result = this.checkRegionPlacement(puzzleString, cell.rowName, cell.colName, value, cell);
-    //       if (!result.valid) continue;
-
-    //       cell.setVal(value);
-    //     }
-    //   }
-    // }
-
-    return { solution };
+    return { valid: true };
   }
 }
 
